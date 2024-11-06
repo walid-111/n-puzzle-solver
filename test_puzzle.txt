@@ -1,6 +1,4 @@
-# Puzzles can be aligned, or NOT. whatever. accept both.
-4
-0 10 5 7 # This is a comment
-11 14 4 8
-1 2 6 13
-12 3 15 9
+3
+3 1 2
+8 0 4
+7 6 5
