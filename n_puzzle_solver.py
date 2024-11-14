@@ -243,7 +243,7 @@ class NPuzzleSolver:
         initial_f = self.initial_state.g_score + self.initial_state.get_heuristic_score()
         heapq.heappush(open_set, (initial_f, id(self.initial_state), self.initial_state))
         
-        while open_set:  # Add a limit to prevent infinite loops
+        while open_set:
             current_f, _, current_state = heapq.heappop(open_set)
             
             # Convert board to tuple for set operations
@@ -357,15 +357,7 @@ def parse_puzzle_file(filename: str) -> List[List[int]]:
     except ValueError as e:
         raise ValueError(f"Invalid puzzle file: {str(e)}")
 
-def main():
-    test_file_content = """3
-3 1 2
-8 0 4
-7 6 5"""
-    
-    with open("test_puzzle.txt", "w") as f:
-        f.write(test_file_content)
-    
+def main(): 
     try:
         board = parse_puzzle_file("test_puzzle.txt")
         initial_state = PuzzleState(board)
