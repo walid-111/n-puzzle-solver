@@ -27,7 +27,7 @@ class PuzzleState:
         self.move = move
         self.g_score = 0 if parent is None else parent.g_score + 1
         self.empty_pos = self._find_number_in_board(0, board)
-        self.goal_board = self._generate_goal_board()
+        self.goal_board = self._generate_snail_goal()
     
     def _find_number_in_board(self, number: int, board: List[List[int]]) -> Tuple[int, int]:
         """Find position of a number in a given board"""
@@ -37,111 +37,139 @@ class PuzzleState:
                     return (i, j)
         raise ValueError(f"Number {number} not found in board")
 
-    def _generate_goal_board(self) -> List[List[int]]:
-        """
-        Generates the goal board in snail pattern.
-        Example for 3x3:
-        1 2 3
-        8 0 4
-        7 6 5
-        """
+    def _generate_snail_goal(self) -> List[List[int]]:
+        """Generates the goal board in snail pattern."""
         goal_board = [[0 for _ in range(self.size)] for _ in range(self.size)]
         number = 1
         top, bottom = 0, self.size-1
         left, right = 0, self.size-1
         
+        if self.size % 2 == 1:
+            zero_row = self.size // 2
+            zero_col = self.size // 2
+        else:
+            zero_row = self.size // 2
+            zero_col = (self.size // 2) - 1
+        
         while number < self.size * self.size:
             # Top row
             for i in range(left, right + 1):
+                if top == zero_row and i == zero_col:
+                    continue
                 goal_board[top][i] = number
                 number += 1
             top += 1
             
             # Right column
             for i in range(top, bottom + 1):
+                if i == zero_row and right == zero_col:
+                    continue
                 goal_board[i][right] = number
                 number += 1
             right -= 1
             
             # Bottom row
             for i in range(right, left - 1, -1):
+                if bottom == zero_row and i == zero_col:
+                    continue
                 goal_board[bottom][i] = number
                 number += 1
             bottom -= 1
             
             # Left column
             for i in range(bottom, top - 1, -1):
+                if i == zero_row and left == zero_col:
+                    continue
                 goal_board[i][left] = number
                 number += 1
             left += 1
         
-        # Set center to 0
-        goal_board[self.size // 2][self.size // 2] = 0
+        goal_board[zero_row][zero_col] = 0
         return goal_board
 
+    def _generate_linear_goal(self) -> List[List[int]]:
+        """Create linear pattern goal state"""
+        numbers = list(range(1, self.size * self.size))
+        numbers.append(0)
+        goal = []
+        for i in range(0, len(numbers), self.size):
+            goal.append(numbers[i:i + self.size])
+        return goal
+
     def is_goal_state(self) -> bool:
-        """Check if current state matches goal state"""
+        """Check if current state matches goal state (snail pattern)"""
         for i in range(self.size):
             for j in range(self.size):
                 if self.board[i][j] != self.goal_board[i][j]:
                     return False
         return True
 
+    def _transform_to_linear(self, board: List[List[int]]) -> List[List[int]]:
+        """Transform a board to equivalent linear pattern positions"""
+        snail_to_linear = {}
+        linear_goal = self._generate_linear_goal()
+        linear_flat = []
+        for row in linear_goal:
+            linear_flat.extend(row)
+        
+        for i in range(len(self.goal_board)):
+            for j in range(len(self.goal_board[i])):
+                snail_num = self.goal_board[i][j]
+                linear_num = linear_flat[i * self.size + j]
+                snail_to_linear[snail_num] = linear_num
+    
+        transformed = []
+        for row in board:
+            new_row = [snail_to_linear[num] for num in row]
+            transformed.append(new_row)
+        
+        return transformed
+
     def is_solvable(self) -> bool:
         """
-        Check if puzzle is solvable for snail pattern goal state.
-        Count inversions relative to goal positions by comparing the relative
-        ordering of numbers in current state vs goal state.
-        Goal: [1, 2, 3, 8, 4, 7, 6, 5]
-        Current: [1, 8, 2, 3, 4, 7, 6, 5]
-        Inversion exemple: (8, 2) because in the goal, 8 comes after 2.
-        General rules:
-        - For odd size puzzles: solvable if inversions are even
-        - For even size puzzles: solvable if inversions are odd and empty tile is on odd row from bottom
+        Check if puzzle is solvable by:
+        1. Transform initial state to linear pattern equivalent
+        2. Check solvability using standard linear pattern rules
         https://www.geeksforgeeks.org/check-instance-8-puzzle-solvable/
         https://www.geeksforgeeks.org/check-instance-15-puzzle-solvable/
         """
-        # Get current state as 1D array (excluding 0)
-        current_state = []
-        for row in self.board:
-            for num in row:
-                if num != 0:
-                    current_state.append(num)
+        transformed_board = self._transform_to_linear(self.board)
+    
+        print("\nGoal board (linear pattern):")
+        for row in self._generate_linear_goal():
+            print(row)
+        print("\nTransformed board (linear pattern):")
+        for row in transformed_board:
+            print(row)
         
-        # Get goal state as 1D array (excluding 0)
-        goal_state = []
-        for row in self.goal_board:
-            for num in row:
-                if num != 0:
-                    goal_state.append(num)
-        
-        # Create a mapping from number to its position in goal state
-        goal_positions = {num: idx for idx, num in enumerate(goal_state)}
-        # Count inversions relative to goal state
+        # Count inversions relative to linear pattern
+        # Get positions in linear pattern (1 should be in position 0, 2 in position 1, etc.)
+        flat_board = [num for row in transformed_board for num in row if num != 0]
+        print("\n1D Transformed board without 0:")
+        print(flat_board)
+
+        # Count inversions
         inversions = 0
-        for i in range(len(current_state)):
-            for j in range(i + 1, len(current_state)):
-                # If relative order differs from goal state
-                print(f"i: {i}, j: {j}")
-                print(f"Comparing {current_state[i]} and {current_state[j]}")
-                if goal_positions[current_state[i]] > goal_positions[current_state[j]]:
+        for i in range(len(flat_board)):
+            for j in range(i + 1, len(flat_board)):
+                if flat_board[i] > flat_board[j]:
                     inversions += 1
         
-        # For odd size puzzles (3x3, 5x5, etc)
-        if self.size % 2 == 1:
-            print(f"Odd size puzzle, inversions: {inversions}")
-            return inversions % 2 == 0
+        blank_position = self._find_number_in_board(0, transformed_board)
+        blank_row_from_bottom = self.size - blank_position[0] - 1
         
-        # For even size puzzles (4x4, 6x6, etc)
+        print(f"Inversions: {inversions}")
+        print(f"blank row from bottom: {blank_row_from_bottom}")
+        
+        # Apply standard linear pattern solvability rules
+        if self.size % 2 == 1:
+            solvable = inversions % 2 == 0
         else:
-            empty_row = self.empty_pos[0]
-            empty_row_from_bottom = self.size - empty_row
-            
-            print(f"Even size puzzle, inversions: {inversions}, empty row from bottom: {empty_row_from_bottom}")
-            if empty_row_from_bottom % 2 == 0:
-                return inversions % 2 == 1
-            else: 
-                return inversions % 2 == 0
+            if blank_row_from_bottom % 2 == 0:
+                solvable = inversions % 2 == 1
+            else:
+                solvable = inversions % 2 == 0
+        return solvable
 
     def get_neighbors_states(self) -> List['PuzzleState']:
         """
@@ -245,6 +273,10 @@ class NPuzzleSolver:
         while open_set:
             current_f, _, current_state = heapq.heappop(open_set)
             
+            # Debug every 10k nodes
+            if self.nodes_selected % 10000 == 0:
+                print(f"Nodes selected: {self.nodes_selected}, f_score: {current_f}, g_score: {current_state.g_score}, h_score: {current_state.get_heuristic_score()}")
+
             board_tuple = tuple(map(tuple, current_state.board))
             if board_tuple in closed_set:
                 continue
@@ -254,7 +286,6 @@ class NPuzzleSolver:
                 
             closed_set.add(board_tuple)
             
-            # Try all possible moves
             for neighbor in current_state.get_neighbors_states():
                 neighbor_tuple = tuple(map(tuple, neighbor.board))
                 if neighbor_tuple in closed_set:
@@ -270,9 +301,7 @@ class NPuzzleSolver:
         return None
 
     def reconstruct_path(self, final_state: PuzzleState) -> List[str]:
-        """
-        Backtrack from final state to initial state  using parent references to get the sequence of moves.
-        """
+        """Backtrack from final state to initial state using parent references to get the sequence of moves."""
         path = []
         current = final_state
         
@@ -301,6 +330,41 @@ class NPuzzleSolver:
                 print(row)
             if i < len(states) - 1:
                 print(f"Move: {states[i + 1].move}")
+
+def main(): 
+    try:
+        board = parse_puzzle_file("../snail.txt")
+        initial_state = PuzzleState(board)
+        
+        print("Initial board:")
+        for row in initial_state.board:
+            print(row)
+        print("\nGoal board (snail pattern):")
+        for row in initial_state.goal_board:
+            print(row)
+        if not initial_state.is_solvable():
+            print("\nThis puzzle is NOT SOLVABLE!")
+            return
+        
+        print("\nPuzzle is solvable, attempting to solve...")
+
+        solver = NPuzzleSolver(initial_state)
+        solution = solver.solve()
+        
+        if solution:
+            moves = solver.reconstruct_path(solution)
+            print("\nSolution path:")
+            solver.print_solution(solution)
+            print(f"\nSolution found in {len(moves)} moves!")
+            print(f"Moves: {moves}")
+            print(f"Nodes examined: {solver.nodes_selected}")
+            print(f"Max nodes in memory: {solver.max_nodes_stored}")
+        else:
+            print("\nNo solution found")
+            print(f"Nodes examined: {solver.nodes_selected}")
+            
+    except ValueError as e:
+        print(f"Error: {e}")
 
 def parse_puzzle_file(filename: str) -> List[List[int]]:
     try:
@@ -351,41 +415,6 @@ def parse_puzzle_file(filename: str) -> List[List[int]]:
         raise ValueError(f"File not found: {filename}")
     except ValueError as e:
         raise ValueError(f"Invalid puzzle file: {str(e)}")
-
-def main(): 
-    try:
-        board = parse_puzzle_file("test_puzzle.txt")
-        initial_state = PuzzleState(board)
-        
-        print("Initial board:")
-        for row in initial_state.board:
-            print(row)
-        print("\nGoal board:")
-        for row in initial_state.goal_board:
-            print(row)
-        if not initial_state.is_solvable():
-            print("\nThis puzzle is NOT SOLVABLE!")
-            return
-        
-        print("\nPuzzle is solvable, attempting to solve...")
-
-        solver = NPuzzleSolver(initial_state)
-        solution = solver.solve()
-        
-        if solution:
-            moves = solver.reconstruct_path(solution)
-            print("\nSolution path:")
-            solver.print_solution(solution)
-            print(f"\nSolution found in {len(moves)} moves!")
-            print(f"Moves: {moves}")
-            print(f"Nodes examined: {solver.nodes_selected}")
-            print(f"Max nodes in memory: {solver.max_nodes_stored}")
-        else:
-            print("\nNo solution found")
-            print(f"Nodes examined: {solver.nodes_selected}")
-            
-    except ValueError as e:
-        print(f"Error: {e}")
 
 if __name__ == "__main__":
     main()

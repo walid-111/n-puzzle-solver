@@ -1,4 +1,5 @@
 import random
+from typing import List
 
 def generate_npuzzle(size: int, filename: str):
    """
@@ -15,7 +16,7 @@ def generate_npuzzle(size: int, filename: str):
            row = numbers[i:i + size]
            f.write(" ".join(str(x) for x in row) + "\n")
 
-generate_npuzzle(3, "test_puzzle.txt")
+generate_npuzzle(6, "test_puzzle.txt")
 
 print("Generated puzzle:")
 with open("test_puzzle.txt", 'r') as f:
