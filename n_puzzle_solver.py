@@ -1,21 +1,17 @@
 """
-------
 Search Algorithms:
-------
+
 Breadth-First Search (BFS):
-- Explores ALL possible moves level by level
-- Problem: Explores EVERYTHING, even bad paths
+- Explores ALL possible moves, level by level, even bad paths
 
 Dijkstra:
-- Like BFS but considers COST of moves, explore cheapeast paths first
-- Problem: Still explores in ALL directions
+- Like BFS but considers COST of moves, explore cheapeast paths first (still explores all)
 
 A* = Dijkstra + heuristic (to guess which moves are promising):
 - Combines:
   * Cost so far (g_score: number of moves made)
   * Estimated cost to goal (h_score: manhattan+misplaced+euclidean in our case)
-  * Total estimate (f_score = g_score + h_score)
-- Always explores the move with lowest f_score
+- Always explores the move with lowest f_score = g_score + h_score
 
 Heuristics for n-puzzle: https://cse.iitk.ac.in/users/cs365/2009/ppt/13jan_Aman.pdf
 """
@@ -24,42 +20,128 @@ from typing import List, Tuple
 import heapq
 
 class PuzzleState:
-    """
-    This class represents a "snapshot" of how the puzzle looks at any moment.
-    """
     def __init__(self, board: List[List[int]], parent=None, move=""):
-        """
-        board: 2D list representing the puzzle grid
-                0 represents the empty space
-                Example for 3x3: [[1,2,3], [8,0,4], [7,6,5]]
-        parent: The previous state that led to this one (None for initial state)
-        move: The move that was made to reach this state ("UP", "DOWN", etc.)
-        """
-
         self.board = board
         self.size = len(board)
         self.parent = parent
         self.move = move
-        
-        # Calculate how many moves it took to get here
         self.g_score = 0 if parent is None else parent.g_score + 1
-
-        self.empty_pos = self._find_empty()
-        self.goal_positions = self._generate_goal_positions()
+        self.empty_pos = self._find_number_in_board(0, board)
+        self.goal_board = self._generate_goal_board()
     
-    def _find_empty(self) -> Tuple[int, int]:
-        """
-        For board: [[1,2,3],
-                    [8,0,4],
-                    [7,6,5]]
-        Returns: (1, 1)
-        """
+    def _find_number_in_board(self, number: int, board: List[List[int]]) -> Tuple[int, int]:
+        """Find position of a number in a given board"""
         for i in range(self.size):
             for j in range(self.size):
-                if self.board[i][j] == 0:
+                if board[i][j] == number:
                     return (i, j)
+        raise ValueError(f"Number {number} not found in board")
+
+    def _generate_goal_board(self) -> List[List[int]]:
+        """
+        Generates the goal board in snail pattern.
+        Example for 3x3:
+        1 2 3
+        8 0 4
+        7 6 5
+        """
+        goal_board = [[0 for _ in range(self.size)] for _ in range(self.size)]
+        number = 1
+        top, bottom = 0, self.size-1
+        left, right = 0, self.size-1
         
-        raise ValueError("Invalid puzzle: No empty space found")
+        while number < self.size * self.size:
+            # Top row
+            for i in range(left, right + 1):
+                goal_board[top][i] = number
+                number += 1
+            top += 1
+            
+            # Right column
+            for i in range(top, bottom + 1):
+                goal_board[i][right] = number
+                number += 1
+            right -= 1
+            
+            # Bottom row
+            for i in range(right, left - 1, -1):
+                goal_board[bottom][i] = number
+                number += 1
+            bottom -= 1
+            
+            # Left column
+            for i in range(bottom, top - 1, -1):
+                goal_board[i][left] = number
+                number += 1
+            left += 1
+        
+        # Set center to 0
+        goal_board[self.size // 2][self.size // 2] = 0
+        return goal_board
+
+    def is_goal_state(self) -> bool:
+        """Check if current state matches goal state"""
+        for i in range(self.size):
+            for j in range(self.size):
+                if self.board[i][j] != self.goal_board[i][j]:
+                    return False
+        return True
+
+    def is_solvable(self) -> bool:
+        """
+        Check if puzzle is solvable for snail pattern goal state.
+        Count inversions relative to goal positions by comparing the relative
+        ordering of numbers in current state vs goal state.
+        Goal: [1, 2, 3, 8, 4, 7, 6, 5]
+        Current: [1, 8, 2, 3, 4, 7, 6, 5]
+        Inversion exemple: (8, 2) because in the goal, 8 comes after 2.
+        General rules:
+        - For odd size puzzles: solvable if inversions are even
+        - For even size puzzles: solvable if inversions are odd and empty tile is on odd row from bottom
+        https://www.geeksforgeeks.org/check-instance-8-puzzle-solvable/
+        https://www.geeksforgeeks.org/check-instance-15-puzzle-solvable/
+        """
+        # Get current state as 1D array (excluding 0)
+        current_state = []
+        for row in self.board:
+            for num in row:
+                if num != 0:
+                    current_state.append(num)
+        
+        # Get goal state as 1D array (excluding 0)
+        goal_state = []
+        for row in self.goal_board:
+            for num in row:
+                if num != 0:
+                    goal_state.append(num)
+        
+        # Create a mapping from number to its position in goal state
+        goal_positions = {num: idx for idx, num in enumerate(goal_state)}
+        # Count inversions relative to goal state
+        inversions = 0
+        for i in range(len(current_state)):
+            for j in range(i + 1, len(current_state)):
+                # If relative order differs from goal state
+                print(f"i: {i}, j: {j}")
+                print(f"Comparing {current_state[i]} and {current_state[j]}")
+                if goal_positions[current_state[i]] > goal_positions[current_state[j]]:
+                    inversions += 1
+        
+        # For odd size puzzles (3x3, 5x5, etc)
+        if self.size % 2 == 1:
+            print(f"Odd size puzzle, inversions: {inversions}")
+            return inversions % 2 == 0
+        
+        # For even size puzzles (4x4, 6x6, etc)
+        else:
+            empty_row = self.empty_pos[0]
+            empty_row_from_bottom = self.size - empty_row
+            
+            print(f"Even size puzzle, inversions: {inversions}, empty row from bottom: {empty_row_from_bottom}")
+            if empty_row_from_bottom % 2 == 0:
+                return inversions % 2 == 1
+            else: 
+                return inversions % 2 == 0
 
     def get_neighbors_states(self) -> List['PuzzleState']:
         """
@@ -100,134 +182,46 @@ class PuzzleState:
         
         return neighbors
 
-    def _generate_goal_positions(self) -> dict:
-        """
-        Example for 3x3:
-        {
-            1: (0,0), 2: (0,1), 3: (0,2),
-            8: (1,0), 0: (1,1), 4: (1,2),
-            7: (2,0), 6: (2,1), 5: (2,2)
-        }
-        """
-        positions = {}
-        number = 1
-        top, bottom = 0, self.size-1
-        left, right = 0, self.size-1
-        
-        while number < self.size * self.size:
-            # Top row
-            for i in range(left, right + 1):
-                positions[number] = (top, i)
-                number += 1
-            top += 1
-            
-            # Right column
-            for i in range(top, bottom + 1):
-                positions[number] = (i, right)
-                number += 1
-            right -= 1
-            
-            # Bottom row
-            for i in range(right, left - 1, -1):
-                positions[number] = (bottom, i)
-                number += 1
-            bottom -= 1
-            
-            # Left column
-            for i in range(bottom, top - 1, -1):
-                positions[number] = (i, left)
-                number += 1
-            left += 1
-        
-        # Add empty space (0) in center
-        positions[0] = (self.size // 2, self.size // 2)
-        return positions
-
     def manhattan_distance(self) -> int:
-        """
-        Total Manhattan distance for current state (ADMISSIBLE HEURISTIC)   
-        Example for number 7 in 3x3:
-        Current:   Goal:
-        1 2 3     1 2 3
-        8 7 4  vs 8 0 4   -> 7 is at (1,1), should be at (2,0)
-        6 0 5     7 6 5      Distance = |1-2| + |1-0| = 2
-        """
-        distance = 0
-        for i in range(self.size):
-            for j in range(self.size):
-                number = self.board[i][j]
-                if number != 0:  # Skip empty tile
-                    goal_row, goal_col = self.goal_positions[number]
-                    distance += abs(i - goal_row) + abs(j - goal_col)
-        return distance
-    
-    def misplaced_tiles(self) -> int:
-        """
-        Total number of misplaced tiles. (ADMISSIBLE HEURISTIC)
-        """
-        count = 0
-        for i in range(self.size):
-            for j in range(self.size):
-                number = self.board[i][j]
-                if number != 0 and self.goal_positions[number] != (i, j):
-                    count += 1
-        return count
-    
-    def euclidean_distance(self) -> float:
-        """
-        Total Euclidean distance for current state. (ADMISSIBLE HEURISTIC)
-        """
+        """Total Manhattan distance for current state"""
         distance = 0
         for i in range(self.size):
             for j in range(self.size):
                 number = self.board[i][j]
                 if number != 0:
-                    goal_row, goal_col = self.goal_positions[number]
-                    distance += ((i - goal_row) ** 2 + (j - goal_col) ** 2) ** 0.5
+                    goal_pos = self._find_number_in_board(number, self.goal_board)
+                    distance += abs(i - goal_pos[0]) + abs(j - goal_pos[1])
         return distance
 
+    def misplaced_tiles(self) -> int:
+        """Total number of misplaced tiles."""
+        count = 0
+        for i in range(self.size):
+            for j in range(self.size):
+                number = self.board[i][j]
+                if number != 0 and number != self.goal_board[i][j]:
+                    count += 1
+        return count
+
+    def euclidean_distance(self) -> float:
+        """Total Euclidean distance for current state."""
+        distance = 0
+        for i in range(self.size):
+            for j in range(self.size):
+                number = self.board[i][j]
+                if number != 0:
+                    goal_pos = self._find_number_in_board(number, self.goal_board)
+                    distance += ((i - goal_pos[0]) ** 2 + (j - goal_pos[1]) ** 2) ** 0.5
+        return distance
+    
     def get_heuristic_score(self) -> int:
-        """
-        Returns the heuristic score for the current state.
-        """
+        """Returns the heuristic score for the current state."""
         manhattan = self.manhattan_distance()
         misplaced = self.misplaced_tiles()
         euclidean = self.euclidean_distance()
 
         # Weights = 1, 0.5, 0.1 respectively, manhattan is the most important
         return manhattan + 0.5 * misplaced + 0.1 * euclidean
-
-    def is_goal_state(self) -> bool:
-        """
-        Check if current state matches goal state configuration
-        """
-        for i in range(self.size):
-            for j in range(self.size):
-                number = self.board[i][j]
-                if number != 0:
-                    goal_pos = self.goal_positions[number]
-                    if (i, j) != goal_pos:
-                        return False
-        return True
-
-    # When we try to print any object using print(), Python automatically looks for its __str__ method
-    def __str__(self) -> str:
-        """
-        string representation of the board.
-        Example:
-        1 2 3
-        8 0 4
-        7 6 5
-        """
-        result = ""
-        
-        for row in self.board:
-            row_string = ""
-            for number in row:
-                row_string += str(number) + " "
-            result += row_string.strip() + "\n"
-        
-        return result.strip()
 
 class NPuzzleSolver:
     def __init__(self, initial_state: PuzzleState):
@@ -239,20 +233,22 @@ class NPuzzleSolver:
         open_set = []
         closed_set = set()
         
-        # Add initial state
         initial_f = self.initial_state.g_score + self.initial_state.get_heuristic_score()
         heapq.heappush(open_set, (initial_f, id(self.initial_state), self.initial_state))
+        
+        print("\nStarting A* search:")
+        print(f"Initial f_score: {initial_f}")
+        print(f"Initial manhattan: {self.initial_state.manhattan_distance()}")
+        print(f"Initial misplaced: {self.initial_state.misplaced_tiles()}")
+        print(f"Initial euclidean: {self.initial_state.euclidean_distance()}")
         
         while open_set:
             current_f, _, current_state = heapq.heappop(open_set)
             
-            # Convert board to tuple for set operations
             board_tuple = tuple(map(tuple, current_state.board))
-            
             if board_tuple in closed_set:
                 continue
             
-            # Check if this is goal state
             if current_state.is_goal_state():
                 return current_state
                 
@@ -271,7 +267,7 @@ class NPuzzleSolver:
             self.max_nodes_stored = max(self.max_nodes_stored, 
                                     len(open_set) + len(closed_set))
         
-        return None  # No solution found
+        return None
 
     def reconstruct_path(self, final_state: PuzzleState) -> List[str]:
         """
@@ -289,9 +285,7 @@ class NPuzzleSolver:
         return list(reversed(path))
 
     def print_solution(self, final_state: PuzzleState):
-        """
-        Shows each state in the solution path
-        """
+        """Shows each state in the solution path"""
         # Collect all states from goal back to start
         states = []
         current = final_state
@@ -303,7 +297,8 @@ class NPuzzleSolver:
         states.reverse()
         for i, state in enumerate(states):
             print(f"\nStep {i}:")
-            print(state)
+            for row in state.board:
+                print(row)
             if i < len(states) - 1:
                 print(f"Move: {states[i + 1].move}")
 
@@ -362,24 +357,29 @@ def main():
         board = parse_puzzle_file("test_puzzle.txt")
         initial_state = PuzzleState(board)
         
-        print("Initial state:")
-        print(initial_state)
-        print("\nGoal positions:")
-        for num in range(initial_state.size * initial_state.size):
-            print(f"Number {num} should be at {initial_state.goal_positions[num]}")
+        print("Initial board:")
+        for row in initial_state.board:
+            print(row)
+        print("\nGoal board:")
+        for row in initial_state.goal_board:
+            print(row)
+        if not initial_state.is_solvable():
+            print("\nThis puzzle is NOT SOLVABLE!")
+            return
         
+        print("\nPuzzle is solvable, attempting to solve...")
+
         solver = NPuzzleSolver(initial_state)
         solution = solver.solve()
         
         if solution:
             moves = solver.reconstruct_path(solution)
+            print("\nSolution path:")
+            solver.print_solution(solution)
             print(f"\nSolution found in {len(moves)} moves!")
             print(f"Moves: {moves}")
             print(f"Nodes examined: {solver.nodes_selected}")
             print(f"Max nodes in memory: {solver.max_nodes_stored}")
-            
-            print("\nSolution path:")
-            solver.print_solution(solution)
         else:
             print("\nNo solution found")
             print(f"Nodes examined: {solver.nodes_selected}")
