@@ -103,21 +103,46 @@ class PuzzleState:
         return True
 
     def is_solvable(self) -> bool:
-        """Check if puzzle is solvable relative to snail pattern goal state"""
+        """
+            Comparing current state to goal state to determine if puzzle is solvable.
+            Solvability Rules for N×N puzzle with snail pattern goal:
+            1. For odd-sized grids (N % 2 == 1):
+            - Must have even number of inversions to be solvable
+            
+            2. For even-sized grids (N % 2 == 0):
+            B = blank tile's row counting from bottom (0-based)
+            I = number of inversions
+            
+            2a. For N = 4, 8, 12... (N % 4 == 0):
+                - If B is even: I must be odd
+                - If B is odd:  I must be even
+            
+            2b. For N = 6, 10, 14... (N % 4 == 2):
+                - If B is even: I must be even
+                - If B is odd:  I must be odd
+                (Opposite of case 2a due to snail pattern requiring
+                    odd number of transpositions in these dimensions)
+            In 4x4, getting from linear (1,2,3,4...16) to snail needs even number of swaps
+            In 6x6, getting from linear (1,2,3,4...36) to snail needs odd number of swaps
+            This "extra swap" in 6x6 (and 10x10, 14x14...) is what flips the parity rules. It's like the puzzle itself starts with an extra inversion built-in.
+        """
         # Create mapping from numbers to their goal positions
         goal_pos = {}
         for i in range(self.size):
             for j in range(self.size):
                 goal_pos[self.goal_board[i][j]] = i * self.size + j
-                
+        # print(f"Goal pos: {goal_pos}")
         # Get current board as flat list (excluding 0)
         board_flat = [num for row in self.board for num in row if num != 0]
-        
+        # print(f"Board flat: {board_flat}")
         # Count inversions relative to goal positions
         inversions = 0
         for i in range(len(board_flat)):
             for j in range(i + 1, len(board_flat)):
+                # print(f"Comparing {board_flat[i]} and {board_flat[j]}")
+                # print(f"Goal pos: {goal_pos[board_flat[i]]} and {goal_pos[board_flat[j]]}")
                 if goal_pos[board_flat[i]] > goal_pos[board_flat[j]]:
+                    print("Inversion found")
                     inversions += 1
         
         if self.size % 2 == 1:
