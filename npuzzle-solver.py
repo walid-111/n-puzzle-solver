@@ -130,45 +130,6 @@ class PuzzleState:
             else:
                 return inversions % 2 == 0
 
-    def get_neighbors_states(self) -> List['PuzzleState']:
-        """
-        Generate all possible next states
-        1 2 3     1 0 3     1 2 3     1 2 3     1 2 3
-        8 0 4  →  8 2 4  +  8 6 4  +  0 8 4  +  8 4 0 
-        7 6 5     7 6 5     7 0 5     7 6 5     7 6 5
-        """
-        neighbors = []
-        
-        # Possible moves: (row_change, column_change, move_name)
-        possible_moves = [
-            (-1, 0, "UP"),
-            (1, 0, "DOWN"),
-            (0, -1, "LEFT"),
-            (0, 1, "RIGHT")
-        ]
-        
-        empty_row, empty_col = self.empty_pos
-        
-        for row_change, col_change, move_name in possible_moves:
-            # Calculate new position for empty tile
-            new_row = empty_row + row_change
-            new_col = empty_col + col_change
-            
-            # Check if new position is within board boundaries
-            if 0 <= new_row < self.size and 0 <= new_col < self.size:
-                # Create a copy of current board
-                new_board = []
-                for row in self.board:
-                    new_board.append(row[:]) # Append copy not reference with [:]
-                
-                # Swap empty tile with neighbor
-                new_board[empty_row][empty_col] = new_board[new_row][new_col]
-                new_board[new_row][new_col] = 0
-                
-                neighbors.append(PuzzleState(new_board, self, move_name))
-        
-        return neighbors
-
     def manhattan_distance(self) -> int:
         """Total Manhattan distance for current state"""
         distance = 0
@@ -254,14 +215,13 @@ class NPuzzleSolver:
                 
             closed_set.add(board_tuple)
             
-            # Process neighbors in optimal order (UP, LEFT, RIGHT, DOWN)
             for move in [("UP", -1, 0), ("LEFT", 0, -1), ("RIGHT", 0, 1), ("DOWN", 1, 0)]:
                 move_name, row_change, col_change = move
                 new_row = current_state.empty_pos[0] + row_change
                 new_col = current_state.empty_pos[1] + col_change
                 
                 if 0 <= new_row < current_state.size and 0 <= new_col < current_state.size:
-                    new_board = [row[:] for row in current_state.board]
+                    new_board = [row[:] for row in current_state.board] # [row[:] for row in current_state.board] is a deep copy of the board so we don't modify the original
                     new_board[current_state.empty_pos[0]][current_state.empty_pos[1]] = new_board[new_row][new_col]
                     new_board[new_row][new_col] = 0
                     
@@ -291,7 +251,6 @@ class NPuzzleSolver:
 
     def print_solution(self, final_state: PuzzleState):
         """Shows each state in the solution path"""
-        # Collect all states from goal back to start
         states = []
         current = final_state
         while current is not None:
@@ -363,7 +322,6 @@ def parse_puzzle_file(filename: str) -> List[List[int]]:
             if size < 2:
                 raise ValueError(f"Invalid puzzle size: {size}")
             
-            # Parse board
             board = []
             for line in lines[1:]:
                 # Handle both aligned and non-aligned formats
