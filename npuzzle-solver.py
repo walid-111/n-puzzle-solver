@@ -17,7 +17,7 @@ Heuristics for n-puzzle: https://cse.iitk.ac.in/users/cs365/2009/ppt/13jan_Aman.
 
 exponential complexity growth:
 3x3: 9! = 362,880 possible states
-4x4: 16! = 20,922,789,888,000 possible states
+4x4: 16! = 20,922,789,888,000 possible states (/2 because half are unsolvable)
 A* performance drops significantly with larger puzzles because more possible moves at each state and longer solution paths +
 heuristic becomes less accurate at predicting optimal moves
 """
@@ -119,16 +119,24 @@ class PuzzleState:
             for j in range(i + 1, len(board_flat)):
                 if goal_pos[board_flat[i]] > goal_pos[board_flat[j]]:
                     inversions += 1
-                    
-        # For even sized puzzles, need to account for blank position from bottom
+        
         if self.size % 2 == 1:
             return inversions % 2 == 0
         else:
+            print("Even sized puzzle")
             blank_row_from_bottom = self.size - self.empty_pos[0] - 1
-            if blank_row_from_bottom % 2 == 0:
-                return inversions % 2 == 1
+            print(f"Blank row from bottom: {blank_row_from_bottom}")
+            
+            if self.size >= 6 and self.size % 4 == 2:
+                if blank_row_from_bottom % 2 == 0:
+                    return inversions % 2 == 0
+                else:
+                    return inversions % 2 == 1
             else:
-                return inversions % 2 == 0
+                if blank_row_from_bottom % 2 == 0:
+                    return inversions % 2 == 1
+                else:
+                    return inversions % 2 == 0
 
     def manhattan_distance(self) -> int:
         """Total Manhattan distance for current state"""
