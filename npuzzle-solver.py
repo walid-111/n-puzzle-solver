@@ -14,10 +14,17 @@ A* = Dijkstra + heuristic (to guess which moves are promising):
 - Always explores the move with lowest f_score = g_score + h_score
 
 Heuristics for n-puzzle: https://cse.iitk.ac.in/users/cs365/2009/ppt/13jan_Aman.pdf
+
+exponential complexity growth:
+3x3: 9! = 362,880 possible states
+4x4: 16! = 20,922,789,888,000 possible states
+A* performance drops significantly with larger puzzles because more possible moves at each state and longer solution paths +
+heuristic becomes less accurate at predicting optimal moves
 """
 
 from typing import List, Tuple
 import heapq
+import sys
 
 class PuzzleState:
     def __init__(self, board: List[List[int]], parent=None, move=""):
@@ -87,15 +94,6 @@ class PuzzleState:
         goal_board[zero_row][zero_col] = 0
         return goal_board
 
-    def _generate_linear_goal(self) -> List[List[int]]:
-        """Create linear pattern goal state"""
-        numbers = list(range(1, self.size * self.size))
-        numbers.append(0)
-        goal = []
-        for i in range(0, len(numbers), self.size):
-            goal.append(numbers[i:i + self.size])
-        return goal
-
     def is_goal_state(self) -> bool:
         """Check if current state matches goal state (snail pattern)"""
         for i in range(self.size):
@@ -104,72 +102,33 @@ class PuzzleState:
                     return False
         return True
 
-    def _transform_to_linear(self, board: List[List[int]]) -> List[List[int]]:
-        """Transform a board to equivalent linear pattern positions"""
-        snail_to_linear = {}
-        linear_goal = self._generate_linear_goal()
-        linear_flat = []
-        for row in linear_goal:
-            linear_flat.extend(row)
-        
-        for i in range(len(self.goal_board)):
-            for j in range(len(self.goal_board[i])):
-                snail_num = self.goal_board[i][j]
-                linear_num = linear_flat[i * self.size + j]
-                snail_to_linear[snail_num] = linear_num
-    
-        transformed = []
-        for row in board:
-            new_row = [snail_to_linear[num] for num in row]
-            transformed.append(new_row)
-        
-        return transformed
-
     def is_solvable(self) -> bool:
-        """
-        Check if puzzle is solvable by:
-        1. Transform initial state to linear pattern equivalent
-        2. Check solvability using standard linear pattern rules
-        https://www.geeksforgeeks.org/check-instance-8-puzzle-solvable/
-        https://www.geeksforgeeks.org/check-instance-15-puzzle-solvable/
-        """
-        transformed_board = self._transform_to_linear(self.board)
-    
-        print("\nGoal board (linear pattern):")
-        for row in self._generate_linear_goal():
-            print(row)
-        print("\nTransformed board (linear pattern):")
-        for row in transformed_board:
-            print(row)
+        """Check if puzzle is solvable relative to snail pattern goal state"""
+        # Create mapping from numbers to their goal positions
+        goal_pos = {}
+        for i in range(self.size):
+            for j in range(self.size):
+                goal_pos[self.goal_board[i][j]] = i * self.size + j
+                
+        # Get current board as flat list (excluding 0)
+        board_flat = [num for row in self.board for num in row if num != 0]
         
-        # Count inversions relative to linear pattern
-        # Get positions in linear pattern (1 should be in position 0, 2 in position 1, etc.)
-        flat_board = [num for row in transformed_board for num in row if num != 0]
-        print("\n1D Transformed board without 0:")
-        print(flat_board)
-
-        # Count inversions
+        # Count inversions relative to goal positions
         inversions = 0
-        for i in range(len(flat_board)):
-            for j in range(i + 1, len(flat_board)):
-                if flat_board[i] > flat_board[j]:
+        for i in range(len(board_flat)):
+            for j in range(i + 1, len(board_flat)):
+                if goal_pos[board_flat[i]] > goal_pos[board_flat[j]]:
                     inversions += 1
-        
-        blank_position = self._find_number_in_board(0, transformed_board)
-        blank_row_from_bottom = self.size - blank_position[0] - 1
-        
-        print(f"Inversions: {inversions}")
-        print(f"blank row from bottom: {blank_row_from_bottom}")
-        
-        # Apply standard linear pattern solvability rules
+                    
+        # For even sized puzzles, need to account for blank position from bottom
         if self.size % 2 == 1:
-            solvable = inversions % 2 == 0
+            return inversions % 2 == 0
         else:
+            blank_row_from_bottom = self.size - self.empty_pos[0] - 1
             if blank_row_from_bottom % 2 == 0:
-                solvable = inversions % 2 == 1
+                return inversions % 2 == 1
             else:
-                solvable = inversions % 2 == 0
-        return solvable
+                return inversions % 2 == 0
 
     def get_neighbors_states(self) -> List['PuzzleState']:
         """
@@ -248,8 +207,7 @@ class PuzzleState:
         misplaced = self.misplaced_tiles()
         euclidean = self.euclidean_distance()
 
-        # Weights = 1, 0.5, 0.1 respectively, manhattan is the most important
-        return manhattan + 0.5 * misplaced + 0.1 * euclidean
+        return len(self.board) * manhattan + misplaced + euclidean
 
 class NPuzzleSolver:
     def __init__(self, initial_state: PuzzleState):
@@ -257,23 +215,33 @@ class NPuzzleSolver:
         self.nodes_selected = 0 # Number of states we looked at
         self.max_nodes_stored = 0 # Maximum number of states stored in memory
 
+class NPuzzleSolver:
+    def __init__(self, initial_state: PuzzleState):
+        self.initial_state = initial_state
+        self.nodes_selected = 0
+        self.max_nodes_stored = 0
+
     def solve(self):
         open_set = []
         closed_set = set()
+        initial_h = self.initial_state.get_heuristic_score()
+        initial_f = self.initial_state.g_score + initial_h
         
-        initial_f = self.initial_state.g_score + self.initial_state.get_heuristic_score()
-        heapq.heappush(open_set, (initial_f, id(self.initial_state), self.initial_state))
+        """
+        (initial_f,        # Primary sort key (f_score = g + h)
+        initial_h,         # Secondary sort - prefer lower heuristic when f_scores equal
+        -g_score,         # Tertiary sort - negative so higher g_scores (deeper paths) are preferred
+        id(state),        # Unique identifier to break remaining ties
+        state)            # The actual state object
+        """
+
+        heapq.heappush(open_set, (initial_f, initial_h, -self.initial_state.g_score, id(self.initial_state), self.initial_state))
         
-        print("\nStarting A* search:")
-        print(f"Initial f_score: {initial_f}")
-        print(f"Initial manhattan: {self.initial_state.manhattan_distance()}")
-        print(f"Initial misplaced: {self.initial_state.misplaced_tiles()}")
-        print(f"Initial euclidean: {self.initial_state.euclidean_distance()}")
-        
-        while open_set:
-            current_f, _, current_state = heapq.heappop(open_set)
+        while open_set and self.nodes_selected < 500000:
+            current_f, current_h, neg_g, _, current_state = heapq.heappop(open_set)
             
-            # Debug every 10k nodes
+            self.max_nodes_stored = max(self.max_nodes_stored, len(open_set) + len(closed_set))
+
             if self.nodes_selected % 10000 == 0:
                 print(f"Nodes selected: {self.nodes_selected}, f_score: {current_f}, g_score: {current_state.g_score}, h_score: {current_state.get_heuristic_score()}")
 
@@ -286,17 +254,25 @@ class NPuzzleSolver:
                 
             closed_set.add(board_tuple)
             
-            for neighbor in current_state.get_neighbors_states():
-                neighbor_tuple = tuple(map(tuple, neighbor.board))
-                if neighbor_tuple in closed_set:
-                    continue
+            # Process neighbors in optimal order (UP, LEFT, RIGHT, DOWN)
+            for move in [("UP", -1, 0), ("LEFT", 0, -1), ("RIGHT", 0, 1), ("DOWN", 1, 0)]:
+                move_name, row_change, col_change = move
+                new_row = current_state.empty_pos[0] + row_change
+                new_col = current_state.empty_pos[1] + col_change
+                
+                if 0 <= new_row < current_state.size and 0 <= new_col < current_state.size:
+                    new_board = [row[:] for row in current_state.board]
+                    new_board[current_state.empty_pos[0]][current_state.empty_pos[1]] = new_board[new_row][new_col]
+                    new_board[new_row][new_col] = 0
                     
-                f_score = neighbor.g_score + neighbor.get_heuristic_score()
-                heapq.heappush(open_set, (f_score, id(neighbor), neighbor))
+                    neighbor_tuple = tuple(map(tuple, new_board))
+                    if neighbor_tuple not in closed_set:
+                        neighbor = PuzzleState(new_board, current_state, move_name)
+                        h_score = neighbor.get_heuristic_score()
+                        f_score = neighbor.g_score + h_score
+                        heapq.heappush(open_set, (f_score, h_score, -neighbor.g_score, id(neighbor), neighbor))
             
             self.nodes_selected += 1
-            self.max_nodes_stored = max(self.max_nodes_stored, 
-                                    len(open_set) + len(closed_set))
         
         return None
 
@@ -333,7 +309,9 @@ class NPuzzleSolver:
 
 def main(): 
     try:
-        board = parse_puzzle_file("../snail.txt")
+        if len(sys.argv) != 2:
+            raise ValueError("Usage: python3 npuzzle-solver.py puzzle.txt")
+        board = parse_puzzle_file(sys.argv[1])
         initial_state = PuzzleState(board)
         
         print("Initial board:")
