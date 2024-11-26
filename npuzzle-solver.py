@@ -15,7 +15,7 @@ A* = Dijkstra + heuristic (to guess which moves are promising):
 
 Heuristics for n-puzzle: https://cse.iitk.ac.in/users/cs365/2009/ppt/13jan_Aman.pdf
 
-exponential complexity growth:
+Exponential complexity growth:
 3x3: 9! = 362,880 possible states
 4x4: 16! = 20,922,789,888,000 possible states (/2 because half are unsolvable)
 A* performance drops significantly with larger puzzles because more possible moves at each state and longer solution paths +
@@ -104,27 +104,23 @@ class PuzzleState:
 
     def is_solvable(self) -> bool:
         """
-            Comparing current state to goal state to determine if puzzle is solvable.
             Solvability Rules for N×N puzzle with snail pattern goal:
-            1. For odd-sized grids (N % 2 == 1):
-            - Must have even number of inversions to be solvable
+            1. N odd:
+                - even number of inversions to be solvable
+            2. N even:
+            B = blank tile's row counting from bottom
+            I = inversions
             
-            2. For even-sized grids (N % 2 == 0):
-            B = blank tile's row counting from bottom (0-based)
-            I = number of inversions
-            
-            2a. For N = 4, 8, 12... (N % 4 == 0):
-                - If B is even: I must be odd
-                - If B is odd:  I must be even
-            
-            2b. For N = 6, 10, 14... (N % 4 == 2):
-                - If B is even: I must be even
-                - If B is odd:  I must be odd
-                (Opposite of case 2a due to snail pattern requiring
-                    odd number of transpositions in these dimensions)
-            In 4x4, getting from linear (1,2,3,4...16) to snail needs even number of swaps
-            In 6x6, getting from linear (1,2,3,4...36) to snail needs odd number of swaps
-            This "extra swap" in 6x6 (and 10x10, 14x14...) is what flips the parity rules. It's like the puzzle itself starts with an extra inversion built-in.
+            2a. N % 4 == 0:
+                - B even: I must be odd
+                - B odd:  I must be even   
+            2b. N % 4 == 2:
+                - B even: I must be even
+                - B odd:  I must be odd
+            Getting from linear to snail pattern:
+            * 4x4, even number of swaps needed
+            * 6x6, odd number of swaps needed
+            The extra swap is what flips the parity rules. It's like the puzzle itself starts with an extra inversion.
         """
         # Create mapping from numbers to their goal positions
         goal_pos = {}
@@ -132,17 +128,15 @@ class PuzzleState:
             for j in range(self.size):
                 goal_pos[self.goal_board[i][j]] = i * self.size + j
         # print(f"Goal pos: {goal_pos}")
-        # Get current board as flat list (excluding 0)
         board_flat = [num for row in self.board for num in row if num != 0]
         # print(f"Board flat: {board_flat}")
-        # Count inversions relative to goal positions
         inversions = 0
         for i in range(len(board_flat)):
             for j in range(i + 1, len(board_flat)):
                 # print(f"Comparing {board_flat[i]} and {board_flat[j]}")
                 # print(f"Goal pos: {goal_pos[board_flat[i]]} and {goal_pos[board_flat[j]]}")
                 if goal_pos[board_flat[i]] > goal_pos[board_flat[j]]:
-                    print("Inversion found")
+                    # print("Inversion found")
                     inversions += 1
         
         if self.size % 2 == 1:
@@ -269,28 +263,22 @@ class NPuzzleSolver:
         
         return None
 
-    def reconstruct_path(self, final_state: PuzzleState) -> List[str]:
-        """Backtrack from final state to initial state using parent references to get the sequence of moves."""
-        path = []
-        current = final_state
-        
-        # Follow parent references until we reach initial state (which has no parent)
-        while current.parent is not None:
-            path.append(current.move)
-            current = current.parent
-        
-        # Reverse path because we collected moves backwards
-        return list(reversed(path))
-
     def print_solution(self, final_state: PuzzleState):
-        """Shows each state in the solution path"""
+        """Shows solution path, and each state in it"""
+
+        # Backtrack from final state to initial state
         states = []
         current = final_state
         while current is not None:
             states.append(current)
             current = current.parent
         
-        # Print from start to goal
+        path = []
+        current = final_state
+        while current.parent is not None:
+            path.append(current.move)
+            current = current.parent
+        
         states.reverse()
         for i, state in enumerate(states):
             print(f"\nStep {i}:")
@@ -298,6 +286,8 @@ class NPuzzleSolver:
                 print(row)
             if i < len(states) - 1:
                 print(f"Move: {states[i + 1].move}")
+        
+        return list(reversed(path))
 
 def main(): 
     try:
@@ -309,24 +299,21 @@ def main():
         print("Initial board:")
         for row in initial_state.board:
             print(row)
+
         print("\nGoal board (snail pattern):")
         for row in initial_state.goal_board:
             print(row)
+
         if not initial_state.is_solvable():
             print("\nThis puzzle is NOT SOLVABLE!")
             return
-        
         print("\nPuzzle is solvable, attempting to solve...")
 
         solver = NPuzzleSolver(initial_state)
         solution = solver.solve()
         
         if solution:
-            moves = solver.reconstruct_path(solution)
-            print("\nSolution path:")
-            solver.print_solution(solution)
-            print(f"\nSolution found in {len(moves)} moves!")
-            print(f"Moves: {moves}")
+            print(f"\nSolution found in {len(solver.print_solution(solution))} moves")
             print(f"Nodes examined: {solver.nodes_selected}")
             print(f"Max nodes in memory: {solver.max_nodes_stored}")
         else:
