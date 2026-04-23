@@ -25,16 +25,18 @@ heuristic becomes less accurate at predicting optimal moves
 from typing import List, Tuple
 import heapq
 import sys
+import argparse
 
 class PuzzleState:
-    def __init__(self, board: List[List[int]], parent=None, move=""):
+    def __init__(self, board: List[List[int]], parent=None, move="", heuristic="manhattan"):
         self.board = board
         self.size = len(board)
         self.parent = parent
         self.move = move
-        self.g_score = 0 if parent is None else parent.g_score + 1
+        self.g_score = 0 if parent is None else parent.g_score + 1 # Depth
         self.empty_pos = self._find_number_in_board(0, board)
         self.goal_board = self._generate_snail_goal()
+        self.heuristic = heuristic
     
     def _find_number_in_board(self, number: int, board: List[List[int]]) -> Tuple[int, int]:
         """Find position of a number in a given board"""
@@ -45,12 +47,12 @@ class PuzzleState:
         raise ValueError(f"Number {number} not found in board")
 
     def _generate_snail_goal(self) -> List[List[int]]:
-        """Generates the goal board in snail pattern."""
+        """Generates the goal board in snail pattern, logic = fill + shrink"""
         goal_board = [[0 for _ in range(self.size)] for _ in range(self.size)]
         number = 1
         top, bottom = 0, self.size-1
         left, right = 0, self.size-1
-        
+
         if self.size % 2 == 1:
             zero_row = self.size // 2
             zero_col = self.size // 2
@@ -117,23 +119,18 @@ class PuzzleState:
             2b. N % 4 == 2:
                 - B even: I must be even
                 - B odd:  I must be odd
-            Getting from linear to snail pattern:
-            * 4x4, even number of swaps needed
-            * 6x6, odd number of swaps needed
-            The extra swap is what flips the parity rules. It's like the puzzle itself starts with an extra inversion.
         """
         # Create mapping from numbers to their goal positions
         goal_pos = {}
         for i in range(self.size):
             for j in range(self.size):
                 goal_pos[self.goal_board[i][j]] = i * self.size + j
-        # print(f"Goal pos: {goal_pos}")
+        print(f"Goal pos: {goal_pos}")
         board_flat = [num for row in self.board for num in row if num != 0]
-        # print(f"Board flat: {board_flat}")
+        print(f"Board flat: {board_flat}")
         inversions = 0
         for i in range(len(board_flat)):
             for j in range(i + 1, len(board_flat)):
-                # print(f"Comparing {board_flat[i]} and {board_flat[j]}")
                 # print(f"Goal pos: {goal_pos[board_flat[i]]} and {goal_pos[board_flat[j]]}")
                 if goal_pos[board_flat[i]] > goal_pos[board_flat[j]]:
                     # print("Inversion found")
@@ -166,7 +163,7 @@ class PuzzleState:
                 if number != 0:
                     goal_pos = self._find_number_in_board(number, self.goal_board)
                     distance += abs(i - goal_pos[0]) + abs(j - goal_pos[1])
-        return distance
+        return distance * self.size
 
     def misplaced_tiles(self) -> int:
         """Total number of misplaced tiles."""
@@ -191,23 +188,18 @@ class PuzzleState:
     
     def get_heuristic_score(self) -> int:
         """Returns the heuristic score for the current state."""
-        manhattan = self.manhattan_distance()
-        misplaced = self.misplaced_tiles()
-        euclidean = self.euclidean_distance()
-
-        return len(self.board) * manhattan + misplaced + euclidean
+        if self.heuristic == "manhattan":
+            return self.manhattan_distance()
+        elif self.heuristic == "misplaced":
+            return self.misplaced_tiles()
+        elif self.heuristic == "euclidean":
+            return self.euclidean_distance()
 
 class NPuzzleSolver:
     def __init__(self, initial_state: PuzzleState):
         self.initial_state = initial_state
         self.nodes_selected = 0 # Number of states we looked at
         self.max_nodes_stored = 0 # Maximum number of states stored in memory
-
-class NPuzzleSolver:
-    def __init__(self, initial_state: PuzzleState):
-        self.initial_state = initial_state
-        self.nodes_selected = 0
-        self.max_nodes_stored = 0
 
     def solve(self):
         open_set = []
@@ -225,7 +217,7 @@ class NPuzzleSolver:
 
         heapq.heappush(open_set, (initial_f, initial_h, -self.initial_state.g_score, id(self.initial_state), self.initial_state))
         
-        while open_set and self.nodes_selected < 500000:
+        while open_set:
             current_f, current_h, neg_g, _, current_state = heapq.heappop(open_set)
             
             self.max_nodes_stored = max(self.max_nodes_stored, len(open_set) + len(closed_set))
@@ -254,7 +246,7 @@ class NPuzzleSolver:
                     
                     neighbor_tuple = tuple(map(tuple, new_board))
                     if neighbor_tuple not in closed_set:
-                        neighbor = PuzzleState(new_board, current_state, move_name)
+                        neighbor = PuzzleState(new_board, current_state, move_name, current_state.heuristic)
                         h_score = neighbor.get_heuristic_score()
                         f_score = neighbor.g_score + h_score
                         heapq.heappush(open_set, (f_score, h_score, -neighbor.g_score, id(neighbor), neighbor))
@@ -266,19 +258,15 @@ class NPuzzleSolver:
     def print_solution(self, final_state: PuzzleState):
         """Shows solution path, and each state in it"""
 
-        # Backtrack from final state to initial state
+        # Backtrack from final state to initial state to collect the states and moves
         states = []
+        path = []
         current = final_state
         while current is not None:
             states.append(current)
-            current = current.parent
-        
-        path = []
-        current = final_state
-        while current.parent is not None:
             path.append(current.move)
             current = current.parent
-        
+
         states.reverse()
         for i, state in enumerate(states):
             print(f"\nStep {i}:")
@@ -291,10 +279,14 @@ class NPuzzleSolver:
 
 def main(): 
     try:
-        if len(sys.argv) != 2:
-            raise ValueError("Usage: python3 npuzzle-solver.py puzzle.txt")
-        board = parse_puzzle_file(sys.argv[1])
-        initial_state = PuzzleState(board)
+        parser = argparse.ArgumentParser()
+        parser.add_argument("puzzle", help="Path to puzzle file")
+        parser.add_argument("--heuristic", choices=["manhattan", "misplaced", "euclidean"], 
+                          default="manhattan", help="Heuristic function to use")
+        args = parser.parse_args()
+
+        board = parse_puzzle_file(args.puzzle)
+        initial_state = PuzzleState(board, heuristic=args.heuristic)
         
         print("Initial board:")
         for row in initial_state.board:
@@ -326,7 +318,7 @@ def main():
 def parse_puzzle_file(filename: str) -> List[List[int]]:
     try:
         with open(filename, 'r') as file:
-            # Read all lines and remove comments and empty lines
+            # Remove comments and empty lines
             lines = []
             for line in file:
                 parts = line.split('#')
