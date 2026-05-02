@@ -362,7 +362,7 @@ def main():
         print("\nPuzzle is solvable, attempting to solve...")
 
         solver = NPuzzleSolver(initial_state)
-        solution = solver.solve()
+        solution = solver.solve(args.search)
 
         if solution:
             print(f"\nSolution found in {len(solver.print_solution(solution))} moves")
