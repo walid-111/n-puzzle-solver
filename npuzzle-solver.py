@@ -325,7 +325,7 @@ class NPuzzleSolver:
             if i < len(states) - 1:
                 print(f"Move: {states[i + 1].move}")
 
-        return list(reversed(path))
+        return list(reversed(path))[1:]  # first state has no move
 
 
 def main():
