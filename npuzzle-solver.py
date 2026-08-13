@@ -5,12 +5,12 @@ Breadth-First Search (BFS):
 - Explores ALL possible moves, level by level, even bad paths
 
 Dijkstra:
-- Like BFS but considers COST of moves, explore cheapeast paths first (still explores all)
+- Like BFS but considers COST of moves, explore cheapest paths first (still explores all)
 
 A* = Dijkstra + heuristic (to guess which moves are promising):
 - Combines:
   * Cost so far (g_score: number of moves made)
-  * Estimated cost to goal (h_score: manhattan+misplaced+euclidean in our case)
+  * Estimated cost to goal (h_score: linear conflict by default, or manhattan / misplaced / euclidean)
 - Always explores the move with lowest f_score = g_score + h_score
 
 Heuristics for n-puzzle: https://cse.iitk.ac.in/users/cs365/2009/ppt/13jan_Aman.pdf
